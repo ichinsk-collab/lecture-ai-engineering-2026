@@ -3,6 +3,7 @@
 使い方:
     uv run python -m app.agent "AIE2026の講座で使う「lecNN-start タグ」とは何ですか？"
     uv run python -m app.agent --trace "LoRAとQLoRAの違いは？"   # ツール呼び出しを表示
+    uv run python -m app.agent "LoRAとは何かを調べて、学習ログに保存して"  # 第3回 宿題: 保存の前に承認を求める
     uv run python -m app.agent --mcp --trace "LoRAとは？"        # 第5回: ツールを MCP サーバーから受け取る
     uv run python -m app.agent --mcp --list-tools               # 第5回: モデルに見えるツール一覧（APIキー不要）
 
@@ -16,7 +17,7 @@ import inspect
 import json
 from pathlib import Path
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, ToolDenied
 from pydantic_ai.exceptions import ModelHTTPError
 from fastmcp import Client
 from pydantic_ai.mcp import MCPToolset, StdioTransport
@@ -33,16 +34,25 @@ INSTRUCTIONS = """\
 - 用語や講座に固有のことを答える前に、必ず search_glossary で用語集を確認する。
 - 回の内容を聞かれたら get_lecture_summary を使う。
 - 用語集に見つからないことは、推測で断定せず「用語集にはない」と伝える。
+- 確認問題を求められたら make_quiz を使い、その問題を出題する。答えは問題のあとに「答え」として分けて示す。
+- 学習の記録を残すよう頼まれたときだけ save_learning_log を使う。本文は会話で確認した内容だけで書く。
+- save_learning_log が拒否されたら、同じ保存をやり直さず、保存しなかったことを伝える。
 - 回答の最後に、関係する回（第N回）を示す。
 - 宿題の答えそのものは書かず、考え方のヒントで導く。
 """
 
 # モデルは実行時に渡す（テストではAPIを呼ばない TestModel に差し替えるため）
-agent = Agent(instructions=INSTRUCTIONS)
+# 第3回 宿題: 承認待ちのツールを呼ぶと、回答（str）の代わりに DeferredToolRequests が返る
+agent = Agent(instructions=INSTRUCTIONS, output_type=[str, DeferredToolRequests])
 agent.tool_plain(tools.search_glossary)
 agent.tool_plain(tools.get_lecture_summary)
+agent.tool_plain(tools.make_quiz)
+# ファイルへの保存は取り消しにくいので、実行前に利用者の承認を挟む（Human-in-the-Loop）
+agent.tool_plain(tools.save_learning_log, requires_approval=True)
 
-# TODO(第3回 演習): tools.py に make_quiz を作り、ここで登録しよう
+# 承認のやり取りの上限。モデルが拒否後も保存を呼び続けても、ループが終わるようにする
+MAX_APPROVAL_ROUNDS = 3
+DENIED_MESSAGE = "利用者が保存を許可しなかった。保存をやり直さず、保存しなかったことを利用者に伝えること。"
 
 # 第5回: 使う MCP サーバーの設定ファイル。Claude Desktop や Cursor と同じ "mcpServers" 形式
 MCP_CONFIG = Path(__file__).resolve().parent / "mcp_servers.json"
@@ -109,6 +119,68 @@ def print_trace(result) -> None:
     print(f"[usage] {result.usage}")
 
 
+def ask_approval(call: ToolCallPart, input_fn=input) -> bool | ToolDenied:
+    """承認待ちのツール呼び出し1つについて、実行してよいかを利用者に聞く。
+
+    y / yes のときだけ承認する。空 Enter・それ以外の入力・入力できない環境（EOF）は拒否として扱う
+    （取り消しにくい操作なので、迷ったら実行しない側に倒す）。
+    """
+    print(f"\n[approval] {call.tool_name} を実行しようとしています")
+    for key, value in call.args_as_dict().items():
+        text = str(value)
+        print(f"  {key}: " + text.replace("\n", "\n    "))
+    try:
+        answer = input_fn("実行してよいですか？ [y/N]: ")
+    except EOFError:
+        answer = ""
+    if answer.strip().lower() in ("y", "yes"):
+        return True
+    return ToolDenied(DENIED_MESSAGE)
+
+
+def resolve_approvals(requests: DeferredToolRequests, input_fn=input) -> DeferredToolResults:
+    """DeferredToolRequests の承認待ちを1件ずつ利用者に聞き、DeferredToolResults にまとめる。"""
+    if requests.calls:
+        names = ", ".join(c.tool_name for c in requests.calls)
+        raise RuntimeError(f"外部で実行するツール（{names}）には対応していません")
+    return DeferredToolResults(
+        approvals={call.tool_call_id: ask_approval(call, input_fn) for call in requests.approvals}
+    )
+
+
+def run_with_approval(target: Agent, question: str, model, input_fn=input,
+                      max_rounds: int = MAX_APPROVAL_ROUNDS):
+    """エージェントを実行し、承認待ちで止まったら利用者に聞いて、会話を引き継いで再開する。
+
+    1回目: run_sync(question) → output が DeferredToolRequests なら承認待ち
+    2回目以降: run_sync(message_history=それまでの会話, deferred_tool_results=承認の結果)
+    usage を引き継いで、[usage] が全体の LLM 呼び出し回数になるようにする。
+    """
+    result = target.run_sync(question, model=model)
+    for _ in range(max_rounds):
+        if not isinstance(result.output, DeferredToolRequests):
+            return result
+        results = resolve_approvals(result.output, input_fn)
+        result = target.run_sync(
+            message_history=result.all_messages(),
+            deferred_tool_results=results,
+            model=model,
+            usage=result.usage,
+        )
+    if isinstance(result.output, DeferredToolRequests):
+        # 上限に達したら、残りは聞かずに全部拒否して、回答だけ作らせる
+        results = DeferredToolResults(
+            approvals={c.tool_call_id: ToolDenied(DENIED_MESSAGE) for c in result.output.approvals}
+        )
+        result = target.run_sync(
+            message_history=result.all_messages(),
+            deferred_tool_results=results,
+            model=model,
+            usage=result.usage,
+        )
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="学習支援エージェントに質問する")
     parser.add_argument("question", nargs="?")
@@ -128,11 +200,14 @@ def main() -> None:
     if args.mcp:
         print("[tools] MCP サーバー（app/mcp_servers.json）")
     try:
-        result = target.run_sync(args.question, model=build_model())
+        result = run_with_approval(target, args.question, build_model())
     except ModelHTTPError as e:
         print(api_error_message(e.status_code, str(e.body)[:200]))
         raise SystemExit(1)
-    print(result.output)
+    if isinstance(result.output, DeferredToolRequests):
+        print("承認の上限回数に達したため、回答を作らずに終了しました。")
+    else:
+        print(result.output)
     if args.trace:
         print_trace(result)
 
