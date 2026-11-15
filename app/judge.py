@@ -25,7 +25,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart, UserPromptPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, RetryPromptPart, ToolCallPart, ToolReturnPart, UserPromptPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.google import GoogleModel
 from pydantic_ai.providers.google import GoogleProvider
@@ -301,15 +301,59 @@ def compare_labels(a: dict[str, dict], b: dict[str, dict], name_a: str, name_b: 
 
 
 # ---------------------------------------------------------------- 回答の生成（宿題・実装）
-def generate_answers(cases: list[dict], wait: float = 1.0) -> list[dict]:
-    """評価セットの各質問を自分のエージェント（app.agent）に投げ、回答を埋める。"""
-    from app.agent import agent, build_model
+def _deny_all(prompt: str = "") -> str:
+    """評価中は人が承認できないので、承認待ちのツール（save_learning_log など）はすべて拒否する。"""
+    return ""
 
-    model = build_model()
-    print(f"回答を生成中 {len(cases)} 件 ", end="", flush=True)
-    for case in cases:
-        result = agent.run_sync(case["question"], model=model)
-        case["answer"] = str(result.output)
+
+def trace_of(result) -> dict:
+    """1 件の実行で呼ばれたツールと、承認を求めたツールを記録する（code_checks.py がこれを見る）。"""
+    from app.agent import DENIED_MESSAGE
+
+    calls, denied = [], []
+    for message in result.all_messages():
+        for part in message.parts:
+            if isinstance(part, ToolCallPart):
+                calls.append(part.tool_name)
+            elif isinstance(part, (ToolReturnPart, RetryPromptPart)) and DENIED_MESSAGE in str(part.content):
+                denied.append(part.tool_name)  # 承認を求めたが、拒否されたツール
+    return {"tool_calls": calls, "denied": denied}
+
+
+RETRY_WAIT = {429: 60, 503: 20}  # レート制限・混雑のときに待つ秒数
+MAX_RETRIES = 5
+
+
+def generate_answers(cases: list[dict], wait: float = 1.0, model=None, save=None) -> list[dict]:
+    """評価セットの各質問を自分のエージェント（app.agent）に投げ、回答を埋める。
+
+    第3回 宿題で save_learning_log に承認（requires_approval）を付けたので、run_sync を 1 回呼ぶだけだと
+    保存を頼む質問で承認待ち（DeferredToolRequests）のまま止まり、回答の代わりにその repr が入ってしまう。
+    run_with_approval で承認待ちを処理し、評価中は人が答えられないので承認はすべて拒否する。
+    どのツールが呼ばれたかを case["trace"] に残し、code_checks.py でコード判定に使う。
+    """
+    from pydantic_ai import DeferredToolRequests
+
+    from app.agent import agent, build_model, run_with_approval
+
+    model = model or build_model()
+    todo = [c for c in cases if not (c.get("answer") and c.get("trace"))]  # 途中で止まったら、残りだけ生成する
+    print(f"回答を生成中 {len(todo)} 件（生成済み {len(cases) - len(todo)} 件は飛ばす） ", end="", flush=True)
+    for case in todo:
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                result = run_with_approval(agent, case["question"], model, input_fn=_deny_all)
+                break
+            except ModelHTTPError as e:
+                if e.status_code not in RETRY_WAIT or attempt == MAX_RETRIES:
+                    raise
+                print(f"\n  #{case['id']}: {e.status_code} のため {RETRY_WAIT[e.status_code]} 秒待って再試行 ", end="", flush=True)
+                time.sleep(RETRY_WAIT[e.status_code])
+        output = result.output
+        case["answer"] = "（承認の上限に達し、回答が作られなかった）" if isinstance(output, DeferredToolRequests) else str(output)
+        case["trace"] = trace_of(result)
+        if save:
+            save(cases)  # 1 件ごとに保存する（途中で止まっても、生成した分は残る）
         print(".", end="", flush=True)
         time.sleep(wait)
     print()
@@ -343,9 +387,10 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.generate:
         try:
-            cases = generate_answers(cases)
+            cases = generate_answers(cases, wait=max(args.wait, 1.0), save=lambda cs: write_jsonl(args.cases, cs))
         except ModelHTTPError as e:
-            print(api_error_message(e.status_code, str(e.body)[:200]))
+            print("\n" + api_error_message(e.status_code, str(e.body)[:200]))
+            print("生成できた分は保存してあります。同じコマンドを再実行すると、残りだけ生成します")
             raise SystemExit(1)
         write_jsonl(args.cases, cases)
         print(f"→ {args.cases} に回答を書き込みました。次に tools/annotate.py でラベルを付けてください")

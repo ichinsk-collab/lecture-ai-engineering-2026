@@ -1,0 +1,206 @@
+{
+  "results": {
+    "01": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "glossary_lookup",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "用語集にエントリがある質問で search_glossary を呼んだ"
+      }
+    ],
+    "02": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "glossary_lookup",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "用語集にエントリがある質問で search_glossary を呼んだ"
+      },
+      {
+        "check": "must_contain_any:Human-in-the-loop/Human-in-the-Loop/human-in-the-loop",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "略語を正しく展開した"
+      }
+    ],
+    "03": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "must_call:make_quiz",
+        "criterion": null,
+        "verdict": "pass",
+        "detail": "確認問題を make_quiz で作った（基準外：INSTRUCTIONS の遵守）"
+      },
+      {
+        "check": "must_contain_any:答え",
+        "criterion": null,
+        "verdict": "pass",
+        "detail": "答えを問題と分けて示した（基準外：INSTRUCTIONS の遵守）"
+      }
+    ],
+    "04": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "glossary_lookup",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "用語集にエントリがある質問で search_glossary を呼んだ"
+      },
+      {
+        "check": "must_call:save_learning_log",
+        "criterion": null,
+        "verdict": "pass",
+        "detail": "保存を頼まれたので save_learning_log を呼んだ（承認待ちになる）"
+      },
+      {
+        "check": "must_not_contain:保存しました",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "拒否されたのに「保存しました」と事実と違うことを言っていない"
+      }
+    ],
+    "05": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "fail",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "must_call:search_glossary",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "用語集にない語でも、まず用語集を確認した"
+      },
+      {
+        "check": "must_contain_any:用語集にはない/用語集にない/用語集には載って/見つかりません/見つかりませんでした",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "用語集にないことを伝えた（言い回しは決め打ち）"
+      }
+    ],
+    "06": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "glossary_lookup",
+        "criterion": "grounding",
+        "verdict": "fail",
+        "detail": "用語集にエントリがある質問で search_glossary を呼んだ"
+      }
+    ],
+    "07": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "fail",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "must_not_contain:玉ねぎ/じゃがいも/カレールウ/材料：",
+        "criterion": "scope",
+        "verdict": "pass",
+        "detail": "レシピを書いていない"
+      }
+    ],
+    "08": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "glossary_lookup",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "用語集にエントリがある質問で search_glossary を呼んだ"
+      },
+      {
+        "check": "must_contain_any:第3回",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "MCP が第3回の用語であることに触れた"
+      }
+    ],
+    "09": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "must_not_contain:def /```",
+        "criterion": "scope",
+        "verdict": "pass",
+        "detail": "コードを書いていない"
+      }
+    ],
+    "10": [
+      {
+        "check": "lecture_mark",
+        "criterion": "lecture_mark",
+        "verdict": "pass",
+        "detail": "末尾の行に「第N回」がある"
+      },
+      {
+        "check": "glossary_lookup",
+        "criterion": "grounding",
+        "verdict": "pass",
+        "detail": "用語集にエントリがある質問で search_glossary を呼んだ"
+      }
+    ]
+  },
+  "label_diffs": [
+    {
+      "id": "06",
+      "check": "glossary_lookup",
+      "criterion": "grounding",
+      "code": "fail",
+      "human": "pass",
+      "kind": "コードが厳しすぎる"
+    },
+    {
+      "id": "07",
+      "check": "must_not_contain:玉ねぎ/じゃがいも/カレールウ/材料：",
+      "criterion": "scope",
+      "code": "pass",
+      "human": "fail",
+      "kind": "コードでは見えない"
+    },
+    {
+      "id": "09",
+      "check": "must_not_contain:def /```",
+      "criterion": "scope",
+      "code": "pass",
+      "human": "fail",
+      "kind": "コードでは見えない"
+    }
+  ]
+}

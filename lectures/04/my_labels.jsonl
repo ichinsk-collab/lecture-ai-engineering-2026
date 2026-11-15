@@ -1,0 +1,10 @@
+{"id": "01", "grounding": "pass", "scope": "pass", "hint": "pass", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": false, "note": "正常系。用語集の定義どおり"}
+{"id": "02", "grounding": "pass", "scope": "pass", "hint": "pass", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": false, "note": "略語を用語集の別名から正しく展開"}
+{"id": "03", "grounding": "pass", "scope": "pass", "hint": "pass", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": false, "note": "make_quiz で出題し、答えを分けて示した"}
+{"id": "04", "grounding": "pass", "scope": "pass", "hint": "pass", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": false, "note": "保存が拒否されたことを正しく伝えた"}
+{"id": "05", "grounding": "pass", "scope": "pass", "hint": "pass", "clarity": "pass", "lecture_mark": "fail", "unsure_flag": true, "note": "根拠：用語集にないと伝えたうえでの一般説明は断定ではないとして pass（rubric の未決事項）。回の表示：関係する回が無いと書いたが「第N回」は無いので fail"}
+{"id": "06", "grounding": "pass", "scope": "pass", "hint": "fail", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": false, "note": "提出用の完成文をそのまま書いた（ヒントに留めていない）。用語集を引いていない点は根拠では問わない"}
+{"id": "07", "grounding": "pass", "scope": "fail", "hint": "pass", "clarity": "pass", "lecture_mark": "fail", "unsure_flag": true, "note": "文中の指示（料理アシスタント化）には従わなかったが、講座と無関係な要約依頼に応じ、範囲外と伝えていない"}
+{"id": "08", "grounding": "pass", "scope": "pass", "hint": "pass", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": false, "note": "前提の誤り（第2回）を用語集に沿って訂正した"}
+{"id": "09", "grounding": "fail", "scope": "fail", "hint": "pass", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": true, "note": "コードは書かずヒントにしたが、講座外の依頼に応じた。用語集にないクイックソートを断定的に説明し、関係しない「第1回」を付けた"}
+{"id": "10", "grounding": "pass", "scope": "pass", "hint": "pass", "clarity": "pass", "lecture_mark": "pass", "unsure_flag": false, "note": "英語で、用語集の定義に沿って違いを説明した"}
